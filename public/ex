@@ -1,0 +1,127 @@
+(socket) => {
+                // socket config token from localstorage
+                // get current host
+                let roomId = '';
+                //window.addEventListener('load', function () {
+                //    const token = localStorage.getItem('token');
+                //    if (token) {
+                //        socket.emit('setUserId', token);
+                //   }
+                //});
+
+                // solicitar y retornar todas las salas getRooms
+                socket.emit('getRooms');
+                socket.on('rooms', function (rooms) {
+                    console.log(rooms);
+
+                    // // data id='' room_id=''
+                    // clean roomsList and append new rooms
+                    roomsList.innerHTML = '';
+                    rooms.forEach(room => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a class="dropdown-item" href="#" data-room_id="${room.room_id}">${room.room_id}</a>`;
+                        roomsList.appendChild(li);
+                    });
+                });
+
+                const connectOrCreateRoom = (roomId) => {
+                    socket.emit('joinRoom', roomId);
+                    socket.emit('getOldMessages', roomId);
+                }
+                // socket.emit('joinRoom', roomId);
+                document.getElementById('rooms').addEventListener('click', function (e) {
+                    if (e.target.tagName === 'A') {
+                        roomId = e.target.dataset.room_id;
+                        document.getElementById('messages').innerHTML = '';
+                        connectOrCreateRoom(roomId);
+                    }
+                });
+
+                // create room
+                document.getElementById('createRoomForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const roomName = document.getElementById('roomName').value;
+                    connectOrCreateRoom(roomName);
+                });
+
+                // Cuando el usuario presiona enter en el input de mensaje
+                document.getElementById('messageInput').addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        const message = e.target.value;
+                        socket.emit('message', roomId, message);
+                        e.target.value = '';
+                    }
+                });
+
+                // Cuando se reciben mensajes antiguos
+                socket.on('oldMessages', function (messages) {
+                    const messagesList = document.getElementById('messages');
+                    messages.forEach(message => {
+                        const li = document.createElement('li');
+                        console.log(message);
+                        // inset card with message, username and date
+                        li.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${message.username}</h5>
+                            <p class="card-text">${message.message}</p>
+                            <p class="card-text">${message.created_at}</p>
+                        </div>
+                    </div>
+                `;
+                        messagesList.appendChild(li);
+                    });
+                });
+
+                // Cuando se recibe un nuevo mensaje
+                socket.on('message', function (message) {
+                    const li = document.createElement('li');
+
+                    li.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">${message.username}</h5>
+                        <p class="card-text">${message.message}</p>
+                        <p class="card-text">${message.created_at}</p>
+                    </div>
+                </div>
+            `;
+                    document.getElementById('messages').appendChild(li);
+                });
+
+                // Cuando el usuario hace clic en el botón de limpiar mensajes se emite clearMessages y recibe clearMessages
+                document.getElementById('clearBtn').addEventListener('click', function () {
+                    socket.emit('clearMessages', roomId);
+                });
+
+                socket.on('clearMessages', function () {
+                    document.getElementById('messages').innerHTML = '';
+                });
+
+                // el back hace esto
+                // avisar a los demas usuarios que un usuario se unio a la sala
+                // socket.to(roomId).emit('userJoined', socket.userId);
+                // quiero que aparezca un mensaje que desaparezca en 2 segundos
+                socket.on('userJoined', function (userId) {
+                    const li = document.createElement('li');
+                    li.textContent = `User ${userId} joined the room`;
+                    document.getElementById('messages').appendChild(li);
+                    setTimeout(() => {
+                        li.remove();
+                    }, 2000);
+                });
+
+                // logout
+                // notify with disconnect
+                // open authModal
+                // remove token from localstorage
+                document.getElementById('logoutBtn').addEventListener('click', function () {
+                    // emit disconnect to server
+                    socket.disconnect();
+                    localStorage.removeItem('token');
+                    authModal.show();
+                    // hide isLogin
+                    isLoginSection.style.display = 'none';
+                });
+            }
+            
