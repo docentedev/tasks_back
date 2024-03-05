@@ -16,7 +16,7 @@ router.post('/register', async (req, res) => {
             return res.status(400).send({ error: 'Invalid username or password' });
         }
 
-        const token = jwt.sign({ userId: user.id }, SECRET);
+        const token = jwt.sign({ userId: user.id, username: user.username }, SECRET);
         res.json({ token });
 
     } catch (err) {
@@ -45,7 +45,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).send({ error: 'Invalid username or password' });
         }
 
-        const token = jwt.sign({ userId: user.id }, SECRET);
+        const token = jwt.sign({ userId: user.id, username: user.username }, SECRET);
         res.json({ token });
     } catch (err) {
         console.error(err);

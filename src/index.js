@@ -13,7 +13,12 @@ const Room = require('./db/Room');
 const Message = require('./db/Message');
 
 const app = express();
-app.use(cors());
+app.use(cors(
+    {
+        origin: ['http://localhost:3000', 'http://localhost:1337'], // 'http://localhost:3000', 'http://localhost:3001
+        credentials: true,
+    }
+));
 
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
@@ -36,6 +41,7 @@ const eventListeners = {
     MESSAGE: 'message',
     CLEAR_MESSAGES: 'clearMessages',
     DISCONNECT: 'disconnect',
+    LEVE_ROOM: 'leaveRoom',
 };
 const eventsDispatch = {
     OLD_MESSAGES: 'oldMessages',
@@ -49,7 +55,12 @@ const eventsDispatch = {
 Promise.all([redisClientConnect]).then(() => {
     console.log('Redis is ready');
     const io = new Server(server, {
-        adapter: createAdapter(redisClient)
+        adapter: createAdapter(redisClient),
+        cors: {
+            origin: "http://localhost:3000",
+            methods: ["GET", "POST"],
+            credentials: true
+        }
     });
 
     io.on('error', (err) => {
@@ -94,9 +105,17 @@ const socketListeners = (io) => {
             const res = await messageDb.find(roomId);
             socket.emit(eventsDispatch.OLD_MESSAGES, res);
             const resRoom = await roomDb.all();
+            console.log('rooms', res, resRoom);
             // emit all rooms to all clients
             io.emit(eventsDispatch.ROOMS, resRoom);
             socket.to(roomId).emit(eventsDispatch.USER_JOINED, socket.userId);
+        });
+
+        // leave from room
+        socket.on(eventListeners.LEVE_ROOM, async (roomId) => {
+            console.log('User leave room', roomId, socket.userId);
+            socket.leave(roomId);
+            socket.to(roomId).emit(eventsDispatch.USER_LEFT, socket.userId);
         });
 
         socket.on(eventListeners.MESSAGE, async (roomId, message) => {

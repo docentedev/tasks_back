@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Login/Register</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Bienvenido | <span id="roomName"></span></h1>
+        <!-- show is login -->
+        <div id="isLogin" style="display: none;">
+            <div class="row">
+                <div class="col">
+                    <div class="row">
+                        <div class="col-md-6 col">
+                            <!-- clear all messages  utilizar button group y button de bootstrap -->
+                            <div class="btn-group" role="group" aria-label="Basic example">
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoomModal">
+                                    Crear sala
+                                </button>
+                                <button id="clearBtn" type="button" class="btn btn-danger">Limpiar mensajes</button>
+                                <!-- logout -->
+                                <button id="logoutBtn" type="button" class="btn btn-secondary">Cerrar sesión</button>
+                                <!-- dropdown de salas las salas se listan cunando socket las retorna y hace un append en el menu -->
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary dropdown-toggle" type="button"
+                                        id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Salas
+                                    </button>
+                                    <ul id="rooms" class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                        <!-- <li><a class="dropdown-item" href="#">Action</a></li> -->
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <ul id="messages"></ul>
+                        <!-- inline form -->
+                        <form id="messageForm">
+                            <div class="input-group mb-3">
+                                <input id="messageInput" type="text" class="form-control" placeholder="Escribe un mensaje"
+                                    aria-label="Escribe un mensaje" aria-describedby="button-addon2">
+                                <button class="btn btn-outline-secondary" type="submit" id="button-addon2">Enviar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- modal create room, input and buttons Cancel, Create Bootstrap 5.2-->
+        <div class="modal fade" id="createRoomModal" tabindex="-1" aria-labelledby="createRoomModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createRoomModalLabel">Crear sala</h5>
+                    </div>
+                    <div class="modal-body">
+                    <form id="createRoomFormModal">
+                        <div class="mb-3">
+                            <label for="roomName" class="form-label">Nombre de la sala</label>
+                            <input type="text" class="form-control" id="createRoomFormModalName" aria-describedby="emailHelp">
+                            <div id="emailHelp" class="form-text">Nombre de la sala</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Crear sala</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Modal -->
+        <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="authModalLabel">Autenticación requerida</h5>
+                    </div>
+                    <div class="modal-body">
+                        <input type="text" id="username" placeholder="Username">
+                        <input type="password" id="password" placeholder="Password">
+                        <button id="loginBtn" class="btn btn-primary">Iniciar sesión</button>
+                        <button id="registerBtn" class="btn btn-secondary">Registrarse</button>
+                        <p id="error" style="color: red;"></p>
+                        <!--- success message -->
+                        <div class="alert alert-success" style="display: none;" role="alert" id="modalAuthSuccessAlert">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            const modalAuthSuccessAlert = document.getElementById('modalAuthSuccessAlert');
+
+            const authModal = new bootstrap.Modal(document.getElementById('authModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+            const createRoomModal = new bootstrap.Modal(document.getElementById('createRoomModal'), {
+                backdrop: 'static',
+                keyboard: false
+            }); 
+            const isLoginSection = document.getElementById('isLogin');
+            const roomsList = document.getElementById('rooms');
+            const createRoomFormModal = document.getElementById('createRoomFormModal');
+            const messageForm = document.getElementById('messageForm');
+        </script>
+        <script>
+            const lsRoom = {
+                save: (room) => {
+                    localStorage.setItem('room', room);
+                },
+                load: () => {
+                    return localStorage.getItem('room');
+                },
+                clear: () => {
+                    localStorage.removeItem('room');
+                }
+            }
+            const socketManager = (socket) => {
+                const connectToRoomAndShow = (roomId) => {
+                    socket.emit('joinRoom', roomId);
+                    socket.emit('getOldMessages', roomId);
+                    document.getElementById('roomName').textContent = roomId;
+                    createRoomModal.hide();
+                    // save room in localstorage
+                    lsRoom.save(roomId);
+                }
+                if (lsRoom.load()) {
+                    connectToRoomAndShow(lsRoom.load());
+                }
+                // solicitar y retornar todas las salas getRooms
+                socket.emit('getRooms');
+                socket.on('rooms', function (rooms) {
+                    console.log(rooms);
+
+                    // // data id='' room_id=''
+                    // clean roomsList and append new rooms
+                    roomsList.innerHTML = '';
+                    rooms.forEach(room => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a class="dropdown-item" href="#" data-room_id="${room.room_id}">${room.room_id}</a>`;
+                        roomsList.appendChild(li);
+                    });
+                });
+
+                const connectOrCreateRoom = (roomId) => {
+                    connectToRoomAndShow(roomId);
+                }
+                // socket.emit('joinRoom', roomId);
+                document.getElementById('rooms').addEventListener('click', function (e) {
+                    if (e.target.tagName === 'A') {
+                        const roomId = e.target.dataset.room_id;
+                        lsRoom.save(roomId);
+                        document.getElementById('messages').innerHTML = '';
+                        connectOrCreateRoom(roomId);
+                    }
+                });
+
+                // FORM create room
+                createRoomFormModal.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const roomName = document.getElementById('createRoomFormModalName').value;
+                    if (roomName === '') {
+                        alert('Room name is required');
+                    }
+                    connectOrCreateRoom(roomName);
+                });
+
+                messageForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const message = document.getElementById('messageInput').value;
+                    const roomId = lsRoom.load();
+                    if (!roomId) {
+                        alert('Select a room');
+                        return;
+                    }
+                    socket.emit('message', roomId, message);
+                    document.getElementById('messageInput').value = '';
+                });
+
+                // Cuando se reciben mensajes antiguos
+                socket.on('oldMessages', function (messages) {
+                    const messagesList = document.getElementById('messages');
+                    messages.forEach(message => {
+                        const li = document.createElement('li');
+                        console.log(message);
+                        // inset card with message, username and date
+                        li.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${message.username}</h5>
+                            <p class="card-text">${message.message}</p>
+                            <p class="card-text">${message.created_at}</p>
+                        </div>
+                    </div>
+                `;
+                        messagesList.appendChild(li);
+                    });
+                });
+
+                // Cuando se recibe un nuevo mensaje
+                socket.on('message', function (message) {
+                    console.log(message);
+                    const li = document.createElement('li');
+
+                    li.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">${message.username}</h5>
+                        <p class="card-text">${message.message}</p>
+                        <p class="card-text">${message.created_at}</p>
+                    </div>
+                </div>
+            `;
+                    document.getElementById('messages').appendChild(li);
+                });
+
+                // Cuando el usuario hace clic en el botón de limpiar mensajes se emite clearMessages y recibe clearMessages
+                document.getElementById('clearBtn').addEventListener('click', function () {
+                    socket.emit('clearMessages', lsRoom.load());
+                });
+
+                socket.on('clearMessages', function () {
+                    document.getElementById('messages').innerHTML = '';
+                });
+
+                // el back hace esto
+                // avisar a los demas usuarios que un usuario se unio a la sala
+                // socket.to(roomId).emit('userJoined', socket.userId);
+                // quiero que aparezca un mensaje que desaparezca en 2 segundos
+                socket.on('userJoined', function (userId) {
+                    const li = document.createElement('li');
+                    li.textContent = `User ${userId} joined the room`;
+                    document.getElementById('messages').appendChild(li);
+                    setTimeout(() => {
+                        li.remove();
+                    }, 2000);
+                });
+
+                // logout
+                // notify with disconnect
+                // open authModal
+                // remove token from localstorage
+                document.getElementById('logoutBtn').addEventListener('click', function () {
+                    // emit disconnect to server
+                    socket.disconnect();
+                    localStorage.removeItem('token');
+                    authModal.show();
+                    // remove room  
+                    lsRoom.clear();
+                    // hide isLogin
+                    isLoginSection.style.display = 'none';
+                });
+            }
+            const showIsLogig = () => {
+                isLoginSection.style.display = 'block';
+            }
+            const startSocketConnect = () => {
+                // if token is not null, create socket with token
+                if (localStorage.getItem('token')) {
+                    console.log('Token', window.location.origin, localStorage.getItem('token'));
+                    // localhost 3001
+                    const socket = io(window.location.origin, {
+                        auth: {
+                            token: localStorage.getItem('token')
+                        }
+                    });
+                    console.log('Socket created');
+                    socketManager(socket);
+                    showIsLogig();
+                } else {
+                    console.log('No token');
+                }
+                // when user click on a room, join to the roomƒ
+            }
+            startSocketConnect();
+        </script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    authModal.show();
+                }
+
+                document.getElementById('loginBtn').addEventListener('click', function () {
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
+
+                    fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username, password }),
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.token) {
+                                // Show success message 2 seconds
+                                modalAuthSuccessAlert.textContent = 'User logged in';
+                                modalAuthSuccessAlert.style.display = 'block';
+                                localStorage.setItem('token', data.token);
+                                // start socket connection
+                                setTimeout(() => {
+                                    modalAuthSuccessAlert.style.display = 'none';
+                                    authModal.hide();
+                                    startSocketConnect();
+                                }, 2000);
+                            } else if (data.error) {
+                                document.getElementById('error').textContent = data.error;
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Error:', error);
+                        });
+                });
+
+                document.getElementById('registerBtn').addEventListener('click', function () {
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
+
+                    fetch('/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username, password }),
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.token) {
+                                localStorage.setItem('token', data.token);
+                                modalAuthSuccessAlert.textContent = 'User registered';
+                                modalAuthSuccessAlert.style.display = 'block';
+                                setTimeout(() => {
+                                    modalAuthSuccessAlert.style.display = 'none';
+                                    authModal.hide();
+                                    startSocketConnect();
+                                }, 2000);
+                            } else if (data.error) {
+                                document.getElementById('error').textContent = data.error;
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Error:', error);
+                        });
+                });
+            });
+        </script>
+</body>
+
+</html>
